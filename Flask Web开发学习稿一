@@ -1,0 +1,1405 @@
+第一章　安装
+
+1.1 使用虚拟环境
+
+虚拟环境是 Python 解释器的一个私有副本，可以安装私有包而不影响全局 Python 解释器
+
+Python 3.3 通过 venv 模块原生支持虚拟环境，命令为 pyvenv 。不过在 Python 3.3 中使用 pyvenv 命令创建的虚拟环境不包含 pip ，在 Python 3.4 中改进了这一缺陷。
+我这边使用 Python 3.5.0 和 Pycharm 来进行学习，所以暂时不使用这个，Pycharm 可以很好的解决各个项目的版本的虚拟环境问题。
+
+1.2 使用 pip 安装 Python 包
+
+使用 (venv) $ pip install flask 可以在虚拟环境中安装 Flask
+
+第二章　程序的基本结构
+
+2.1 初始化
+
+Web 服务器使用一种名为 Web 服务器网关接口的协议，把接收自客户端的所有请求都转交给这个对象处理 
+Flask 类的构造函数只有一个必须指定的参数，即程序主模块或包的名字。Flask 用这个参数决定程序的根目录，以便找到相对于程序根目录的资源文件位置。在大多数程序中，Python 的 __name__ 变量就是所需的值。
+
+2.2 路由和视图函数
+
+程序实例保存了一个 URL 到 Python 函数的映射关系，处理 URL 和函数之间关系的程序成为路由。 
+Flask 中定义路由最简单的方式是使用程序提供的 app.route 修饰器，把修饰的函数注册为路由。
+
+@app.route('/')
+def index():
+    return '<h1>Hello World!</h1>'
+1
+2
+3
+1
+2
+3
+修饰器是 Python 语言的标准特性，可以使用不同的方式修改函数的行为
+把 index 函数注册为程序跟地址的处理程序，不过在 Pthon 代码中嵌入响应字符串会导致代码难以维护，以后将会介绍生成响应的正确方法。像 index 这样的函数称为视图函数。 
+地址中也可以包含可变部分，可以在路由中定义可变的这部分
+
+@app.route('/user/<name>')
+def user(name):
+    return '<h1>Hello, %s!</h1>' % name
+1
+2
+3
+1
+2
+3
+尖括号中的内容是动态部分，任何能匹配静态部分的 URL 都会映射到这个路由上。
+
+2.3 - 2.4 启动服务器
+
+用 run 方法来启动 Flask 集成的开发 Web 服务器
+
+from flask import Flask
+app = Flask(__name__)
+
+
+@app.route('/')
+
+
+def index():
+    return '<h1>Hello World!</h1>'
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+使用__name__ == '__main__'是 Python 的惯用法，确保直接执行此脚本时才启动服务器，若其他程序调用该脚本可能父级程序会启动不同的服务器，就不执行 app.run 了 
+在 Pycharm 中启动后，可以看到 Flask 为我们启动了一个调试实例 
+1.png 
+通过浏览器访问，可以发现已经成功的访问了，而且调试器中也记录下了这次访问 
+这里写图片描述 
+我们可以和前面的动态部分结合起来，变成一个根据不同地址显示不同页面的服务，可以看到服务器已经记录下了两次访问，其中一次使用路径进来，响应中也带有相应信息，表示已经成功 
+这里写图片描述 
+这里写图片描述
+
+2.5 请求-响应循环
+
+2.5.1 程序和请求上下文
+
+为了避免在需要使用访问对象时，都将其作为参数传入。Flask 使用上下文临时把某些对象变为全局可访问
+
+from flask import Flask
+from flask import request
+
+app = Flask(__name__)
+
+@app.route('/')
+
+
+def index():
+    user_agent = request.headers.get('User-Agent')
+    return '<p>Your Browser is %s!</p>' % user_agent
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+这里写图片描述 
+在这个视图函数中，我们把 request 当作全局变量使用，事实上 request 不可能是全局变量，而 Flask 使用上下文让特定的变量在一个线程中全局可访问，与此同时还不会干扰其他线程。
+
+线程是可单独管理的最小指令集，多线程 Web 服务器会创建一个线程池 
+再从线程池中选择一个线程用于处理接收到的请求
+在 Flask 中有两种上下文：程序上下文和请求上下文，这两种上下文提供的变量如下：
+
+变量名	上下文	说明
+current_app	程序上下文	当前激活程序的程序实例
+g	程序上下文	处理请求时用作临时存储的对象，每次请求都会重设这个变量
+request	请求上下文	请求对象，封装了客户端发出的 HTTP 请求中的内容
+session	请求上下文	用户绘画，用户存储请求之间需要“记住”的值的字典
+Flask 会在分发请求之前激活程序和请求上下文，请求处理完成后再将其删除
+
+2.5.2 请求调度
+
+Flask 使用 app.route 修饰器或者非修饰器形式的 app.add_url_rule() 生成映射 
+想要查看 Flask 程序中的 URL 映射是什么样子，我们可以在 Python Shell 中检查为 hello》py 生成的映射
+
+from hello import app
+app.url_map
+1
+2
+1
+2
+2.5.3 请求钩子
+
+有时在处理请求之前或者之后执行代码会很有用，Flask 提供了注册通用函数的功能，注册的函数可在请求被分发到视图函数之前或之后调用。请求钩子使用修饰器实现。Flask 支持以下四种钩子：
+
+钩子名	上下文
+before_first_request	注册一个函数，在处理第一个请求之前运行
+before_request	注册一个函数，在每次请求之前运行
+after_request	注册一个函数，如果没有未处理的异常抛出，在每次请求后运行
+teardown_request	注册一个函数，即使有未处理的异常抛出，也在每次请求后运行
+Flask 会在分发请求之前激活程序和请求上下文，请求处理完成后再将其删除 
+在请求钩子函数和视图函数之间共享数据一般使用上下文全局变量g
+
+2.5.4 响应
+
+Flask 调用视图函数后，会将其返回值作为响应的内容。如果视图函数返回的响应需要使用不同的状态码，那么可以把数字代码作为第二个返回值，添加到响应文本之后。
+
+from flask import Flask
+from flask import request
+
+app = Flask(__name__)
+
+@app.route('/')
+
+
+def index():
+    return '<p>Bad Request !</p>', 400
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+可以看到浏览器中直接显示了 HTPP 400 错误。视图函数返回的响应还可以接受第三个参数，这是一个由首部组成的字典，可以添加到 HTTP 响应中。 
+如果不想返回由多个值组成的元组，Flask 视图函数还可以返回 Response 对象。make_response() 函数可接受1/2/3个参数，并返回一个 Response 对象。
+
+from flask import Flask
+from flask import make_response
+from flask import redirect
+
+app = Flask(__name__)
+
+@app.route('/')
+
+
+def index():
+    response = make_response('<h1>This document carries a cookie!</h1>')
+    response.set_cookie('answer', '42')
+    return response
+
+
+@app.route('/<name>')
+
+
+def user(name):
+    return redirect('http://www.baidu.com')
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+可以看到，已经被设置好了 Cookie 
+这里写图片描述 
+如果在地址中访问/txb则会被重定向到百度去 
+还有一种特殊的响应由 abort 函数生成，用于错误处理
+
+from flask import Flask
+from flask import make_response
+from flask import abort
+
+app = Flask(__name__)
+
+@app.route('/')
+
+
+def index():
+    response = make_response('<h1>This document carries a cookie!</h1>')
+    response.set_cookie('answer', '42')
+    return response
+
+@app.route('/get/<id>')
+
+
+def get_id(id):
+    if id != '9':
+        abort(404)
+    return '<h1>Hello, %s!</h1>' % id
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+通过访问可以发现，只有在访问/get/9时才能正确得到 Hello ，若是输入其他返回为 404 页面 
+abort 不会把控制权交还给调用它的函数，而是抛出异常把控制权交给 Web 服务器
+
+2.6 Flask 扩展
+
+Flask 的开发 Web 服务器支持很多启动设置选项，但只能在脚本中作为参数传给 app.run() 函数，这种方式并不十分方便，传递设置选项的理想方式是使用命令行参数。 
+Flask-Script 是一个 Flask 扩展，为 Flask 程序添加了一个命令行解析器。
+
+from flask import Flask
+from flask import make_response
+from flask import redirect
+from flask import abort
+from flask.ext.script import Manager
+
+app = Flask(__name__)
+manager = Manager(app)
+
+@app.route('/')
+
+
+def index():
+    response = make_response('<h1>This document carries a cookie!</h1>')
+    response.set_cookie('answer', '42')
+    return response
+
+
+@app.route('/user/<name>')
+
+
+def user(name):
+    return redirect('http://www.baidu.com')
+
+
+@app.route('/get/<id>')
+
+
+def get_id(id):
+    if id != '9':
+        abort(404)
+    return '<h1>Hello, %s!</h1>' % id
+
+
+if __name__ == '__main__':
+    manager.run()
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+这个扩展的初始化方法为：把程序实例作为参数传给构造函数，初始化主类的实例。创建的对象可以在各个扩展中使用。在这里，服务器由 manager.run() 启动，启动后就能解析命令行了。 
+在命令行中启动试试看： 
+这里写图片描述 
+Shell 命令用于在程序的上下文中启动 Python Shell 会话，可以用来运行维护任务或测试，还可以调试异常 
+runserver 命令用来启动 Web 服务器
+
+第三章 模版
+
+视图函数的作用很明确，即生成请求的响应 
+模版是一个包含响应文本的文件，其中包含用占位符变量表示的动态部分
+
+3.1 Jinja 2 模版引擎
+
+3.1.1 渲染模版
+
+默认情况下，Flask 在程序文件夹中的 templates 子文件夹中寻找模版
+
+from flask import Flask
+from flask import render_template
+
+app = Flask(__name__)
+
+@app.route('/')
+
+
+def index():
+    return render_template('index.html')
+
+
+@app.route('/user/<name>')
+
+
+def user(name):
+    return render_template('user.html', name=name)
+
+
+if __name__ == '__main__':
+    app.run()
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+这段代码可以和上面实现相同的作用，render_template()函数的第一个参数是模版的文件名，随后的参数都是键值对，表示模版中变量对应的真实值
+
+3.1.2 变量
+
+模版中使用的{{ name }}结构表示一个变量，它是一种特殊的占位符，告诉模版引擎这个位置的值从渲染模版时使用的数据中获取 
+Jinja2 能识别所有类型的变量，甚至是一些复杂的类型，例如列表、字典和对象，例如
+
+<p>A value from a dictionary: {{ mydict['key'] }}.</p>
+<p>A value froma list: {{ mylist[3] }}.</p>
+<p>A value froma list, with a variable index: {{ mylist[myintvar] }}.</p>
+<p>A value froman object's method: {{ myobj.somemethod() }}.</p>
+1
+2
+3
+4
+1
+2
+3
+4
+下面这个例子就是读取这些复杂类型的
+
+from flask import Flask
+from flask import render_template
+
+app = Flask(__name__)
+
+
+class Human():
+    def somemethod(self):
+        return 'Flask say Hello world!'
+
+
+@app.route('/<name>')
+def user(name):
+    mydict = {"key": "This is a Flask Program"}
+    mylist = ['it', 'Hello', 'the', 'world']
+    myintvar = 0
+    myobj = Human()
+
+    return render_template('user.html', name=name, mydict=mydict, mylist=mylist, myintvar=myintvar, myobj=myobj)
+
+
+if __name__ == '__main__':
+    app.run()
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+也可以使用过滤器来修改变量，过滤器名添加在变量名之后，中间使用竖线分隔
+
+过滤器名	说明
+safe	渲染值时不转义
+capitalize	把值的首字母转换成大写，其他字母转换成小写
+lower	把值转换成小写形式
+upper	把值转换成大写形式
+title	把值中的每个单词的首字母都变成大写
+trim	把值的首尾空格去掉
+striptags	渲染前把值中的 HTML 标签都删掉
+默认情况出于安全考虑， Jinja2 会转义所有变量，完整的过滤器可去 Jinja2 的文档中查看
+
+3.1.3 控制结构
+
+Jinja2 提供了多种控制结构，可用来改变模版的渲染流程
+
+{{ % if user %}}
+    hello, {{ user }}
+{{% else %}}
+    hello, world
+{{% endif % }}
+1
+2
+3
+4
+5
+1
+2
+3
+4
+5
+是条件控制结构
+
+{% for comment in comments %}
+    <li>{{ comment }}</li>
+{% endfor %}
+1
+2
+3
+1
+2
+3
+是循环控制结构， Jinja2 还支持宏，宏类似于 Python 代码中的函数
+
+from flask import Flask
+from flask import render_template
+
+app = Flask(__name__)
+
+
+@app.route('/macro')
+def macro():
+    comments = ['it', 'Hello', 'the', 'world']
+    return render_template('macro.html', comments=comments)
+
+
+if __name__ == '__main__':
+    app.run()
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+在响应模版macro.html中
+
+{% macro render_comment(comment) %}
+    <li>{{comment}}</li>
+{% endmacro %}
+
+<ul>
+     {% for comment in comments%}
+        {{ macro.render_comment(comment) }}
+    {% endfor %}
+</ul>
+1
+2
+3
+4
+5
+6
+7
+8
+9
+1
+2
+3
+4
+5
+6
+7
+8
+9
+奇怪的是这个例子我一直返回的是500错误，没有成功 
+为了提高重用性，可以把重复使用的部分保存在单独的文件中，在需要使用的模版中导入即可
+
+from flask import Flask
+from flask import render_template
+
+app = Flask(__name__)
+
+
+@app.route('/comments')
+def comments():
+    comments = ["it", "Hello", "the", "world"]
+    return render_template('comments.html', comments=comments)
+
+
+if __name__ == '__main__':
+    app.run()
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+在macro.html中
+
+{% macro render_comment(comment) %}
+    <li>{{comment}}</li>
+{% endmacro %}
+1
+2
+3
+1
+2
+3
+在comments.html中
+
+{% import 'macro.html' as macro %}
+<ul>
+     {% for comment in comments%}
+        {{ macro.render_comment(comment) }}
+    {% endfor %}
+</ul>
+1
+2
+3
+4
+5
+6
+1
+2
+3
+4
+5
+6
+提高重用性的更好方式是模版继承，就像面向对象中的继承类似，首先创建一个base.html的基模版
+
+<html>
+<head>
+    {% block head%}
+        <title>
+            {% block title%}{% endblock%}- My Application
+        </title>
+    {% endblock %}
+</head>
+<body>
+    {% block body%}
+    {% endblock%}
+</body>
+</html>
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+衍生模版为child.html
+
+{% extends 'base.html'%}
+
+{% block title%}
+    Index
+{% endblock %}
+
+{% block head%}
+    {{ super() }}
+    <style>
+    </style>
+{% endblock%}
+
+{% block body%}
+    <h1>Helll, World!</h1>
+{% endblock%}
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+在 Python 文件中
+
+from flask import Flask
+from flask import render_template
+
+app = Flask(__name__)
+
+
+@app.route('/extends')
+def extends():
+    return render_template('child.html')
+
+
+if __name__ == '__main__':
+    app.run()
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+extends指令声明这个模版衍生自base.html，在此指令后基模版的三个块被重新定义，模版引擎会将其插入适当的位置，使用super()来获取原来的内容
+
+3.2 Flask-Bootstrap
+
+from flask.ext.bootstrap import Bootstrap
+from flask import Flask
+from flask import render_template
+
+app = Flask(__name__)
+bootstrap = Bootstrap(app)
+
+
+@app.route('/bootstrap/<name>')
+def bootstrap(name):
+    return render_template('bootstrap.html', name=name)
+
+
+if __name__ == '__main__':
+    app.run()
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+在bootstrap.html中
+
+{% extends 'bootstrap/base.html'%}
+
+{% block title%} Flasky {% endblock %}
+{% block navbar%}
+
+    <div class="navbar navbar-inverse" role="navigation">
+        <div class="container">
+            <div class="navbar-header">
+            <button type="button" class="navbar-toggle"
+            data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+           </button>
+            <a class="navbar-brand" href="/">Flasky</a> </div>
+            <div class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li><a href="/">Home</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block content%}
+    <div class="container">
+        <div class="page-header">
+        <h1>Hello, {{ name }}!</h1> </div>
+    </div>
+{% endblock %}
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+可以看到，访问已经带有其他样式了，这样就构建了一个“好看”的网页。Jinja2 中的extends指令从 Flask-Bootstrap 中导入bootstrap/base.html，从而实现模版继承。Flask-Bootstrap 中的基模版提供了一个网页框架，引入了 Bootstrap 中的所有 CSS 和 JavaScript 文件 
+Flask-Bootstrap 的基模版中定义了可在衍生模版中重定义的块，block 和 endblock 指令定义的块中的内容可添加到基模版中
+
+块名	说明
+doc	整个 HTML 文档
+html_attribs	标签中的属性
+html	标签中的内容
+head	标签中的内容
+title	标签中的内容
+metas	一组标签
+styles	层叠样式表定义
+body_attribs	标签的属性
+body	标签中的内容
+navbar	用户定义的导航条
+content	用户定义的页面内容
+scripts	文档底部的 JavaScript 声明
+上表中的很多块都是 Flask-Bootstrap 自用的，最好不要重新定义，Bootstrap 所需的文件在 styles 和 scripts 块中声明，如果程序需要向已经有内容的块中添加新内容，必须使用 Jinja2 提供的super()函数，例如添加一个新的 JavaScript 文件
+
+{% block scripts %}
+    {{ super() }}
+    <script type="text/javascript" src="my-script.js"></script>
+{% endblock %}
+1
+2
+3
+4
+1
+2
+3
+4
+3.3 自定义错误页面
+
+from flask.ext.bootstrap import Bootstrap
+from flask import Flask
+from flask import render_template
+
+app = Flask(__name__)
+bootstrap = Bootstrap(app)
+
+
+@app.route('/user/<name>')
+def bootstrap(name):
+    return render_template('bootstrap.html', name=name)
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    return render_template('500.html'), 500
+
+
+if __name__ == '__main__':
+    app.run()
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+对已有页面进行复制粘贴的修改肯定可行 
+这里写图片描述 
+不过我们想通过更好的方法（模版继承）来实现，我们定义一个基模版base.html
+
+{% extends "bootstrap/base.html" %}
+
+{% block title %}Flasky{% endblock %}
+{% block navbar %}
+<div class="navbar navbar-inverse" role="navigation">
+    <div class="container">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">Flasky</a>
+        </div>
+        <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+                <li><a href="/">Home</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        {% block page_content %}{% endblock %}
+    </div>
+{% endblock %}
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+这个模版的content块中只有一个
+
+容器，其中包含了一个名为page_content的新的空块，块中内容由衍生模版定义，这样 404.html 就不必基于 Flask-Bootstrap 的基模版了，只需要继承自 base.html 即可。之前的 user.html 也可以通过这个继承页面来进行简化
+{% extends 'base.html'%}
+
+{% block title%} 欢迎页面 {% endblock%}
+{% block content %}
+    <div class="page-header">
+        <h1> 欢迎，{{ name }}! </h1>
+    </div>
+{% endblock%}
+1
+2
+3
+4
+5
+6
+7
+8
+1
+2
+3
+4
+5
+6
+7
+8
+3.4 链接
+
+Flask 提供了url_for()辅助函数，它可以使程序 URL 映射中保存的信息生成 URL 
+url_for()函数最简单的用法是以视图函数名作为参数，返回对应的 URL，
+
+3.5 静态文件
+
+对静态文件的引用被当成一个特殊的路由，即/static/<filename> 
+在index.html中加入如下
+
+{% block head %}
+    {{ super() }}
+    <link rel="shortcut icon" href="{{ url_for('static', filename = 'favicon.ico') }}" type="image/x-icon">
+    <link rel="icon" href="{{ url_for('static', filename = 'favicon.ico') }}" type="image/x-icon">
+{% endblock %}
+1
+2
+3
+4
+5
+
+1
+2
+3
+4
+5
+在网页查看源码可以发现，如果存在/static/<filename>即会被加载
